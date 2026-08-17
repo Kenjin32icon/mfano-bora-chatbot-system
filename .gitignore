@@ -1,3 +1,18 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Environment secrets
 .env
+
+# OS/editor
+.DS_Store
+.vscode/
+*.log
+
+# Node (for later frontend/backend phases)
+node_modules/
+
 mfano-bora-chatbot-system_compiled_system.txt
 Docs/Mfano_Bora_Chatbot_GitHub_Supabase_Implementation_Plan.md
