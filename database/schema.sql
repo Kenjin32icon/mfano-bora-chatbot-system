@@ -1,7 +1,7 @@
 -- ============================================================================
--- Mfano Bora Africa Chatbot - Local Knowledge Base & System Schema
+-- Mfano Bora Africa Chatbot - Local Knowledge Base & System Schema + Seed Data
 -- Engine: SQLite 3
--- File Location: database/schema.sql
+-- File Location: database/schema.sql (Combined with seed data)
 -- ============================================================================
 
 -- Enable foreign keys for relational integrity
@@ -114,3 +114,36 @@ INSERT OR IGNORE INTO kb_categories (slug, name, source_type, parent_group, upda
     ('forms-templates', 'Forms & Templates', 'organisational_registry', 'Forms & Downloads', 'As Needed'),
     ('reports-publications', 'Reports, Publications & Research', 'institutional_program_record', 'Publications & Reports', 'Bi-Annually'),
     ('admin-faq-logs', 'Admin FAQ & Chat Audit Logs', 'dynamic_admin_log', 'System', 'Continuous');
+
+-- 9. Seed Fast-Path Curated FAQ Entries
+INSERT INTO faq_entries (question, answer, category_id) VALUES 
+(
+    'How can I apply for industrial attachment?',
+    'Visit our Attachment section to learn about available opportunities, requirements, and the application process, then submit the Attachment Application Form.',
+    (SELECT id FROM kb_categories WHERE slug = 'attachment-portal')
+), 
+(
+    'Where can I find current opportunities?',
+    'Current attachment, internship, employment, and other opportunities are published through our Careers section.',
+    (SELECT id FROM kb_categories WHERE slug = 'careers')
+), 
+(
+    'Can I download Mfano Bora Africa documents?',
+    'Yes. Available forms, guides, publications, and other official documents can be downloaded from the Resources Centre.',
+    (SELECT id FROM kb_categories WHERE slug = 'forms-templates')
+), 
+(
+    'Where can I find information about the Transport, Logistics and Road Safety Awards?',
+    'Visit the Logistics & Transport Awards section for information about the awards programme, participation, nominations, and related resources.',
+    (SELECT id FROM kb_categories WHERE slug = 'awards-events')
+), 
+(
+    'How can I access ICT training resources?',
+    'Visit the Mfano Africa ICT Hub section for information about technology training, digital skills, and available learning opportunities.',
+    (SELECT id FROM kb_categories WHERE slug = 'ict-hub')
+), 
+(
+    'Where is Mfano Bora Africa located and what are your office hours?',
+    'Mfano Bora Africa is located at Mfano House, Ole Sein Road, Nairobi, Kenya. Office hours are Monday to Friday, 7:00 AM to 5:00 PM, and Saturday, 8:00 AM to 1:00 PM.',
+    (SELECT id FROM kb_categories WHERE slug = 'location-contact')
+);
