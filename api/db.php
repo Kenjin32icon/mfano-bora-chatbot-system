@@ -2,12 +2,17 @@
 /**
  * db.php
  * Direct PDO connection to the local SQLite database.
- * Replaces the remote Supabase Postgres pooler with a lightweight local file-based database.
+ * Replaces remote PostgreSQL with a lightweight, local file-based SQLite database.
  */
 
 declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 
+/**
+ * Returns a static PDO connection instance to the local SQLite database.
+ *
+ * @return PDO
+ */
 function mfano_db(): PDO
 {
     static $pdo = null;
@@ -16,18 +21,24 @@ function mfano_db(): PDO
         return $pdo;
     }
 
-    // Database sits locally in the folder, no external host needed
+    // Points to the chatbot.sqlite database file relative to the api directory
     $dbPath = __DIR__ . '/../database/chatbot.sqlite';
 
     try {
         $pdo = new PDO('sqlite:' . $dbPath);
+        
+        // Enable exceptions for error handling and return associative arrays by default
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        // Enable foreign keys and Write-Ahead Logging for performance
-        $pdo->exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
+
+        // Performance & integrity optimizations for local SQLite
+        $pdo->exec('PRAGMA foreign_keys = ON;');
+        $pdo->exec('PRAGMA journal_mode = WAL;');
+
     } catch (PDOException $e) {
+        error_log("Database Connection Error: " . $e->getMessage());
         http_response_code(500);
-        die(json_encode(['error' => 'Local database connection failed.']));
+        die(json_encode(['error' => 'Database connection failed. Check server configuration.']));
     }
 
     return $pdo;
