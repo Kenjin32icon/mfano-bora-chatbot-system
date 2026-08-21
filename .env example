@@ -2,22 +2,30 @@
 # Mfano Bora Chatbot System - Environment Configuration (SQLite + PHP Stack)
 # ==============================================================================
 
-# Application Environment Settings
+# --- Application Settings ---
 APP_ENV=development
 APP_NAME="Mfano Bora Resources Portal & Chatbot"
-APP_URL=http://localhost/mfano_bora
+APP_URL=http://localhost:8000
+ALLOWED_ORIGIN=http://localhost:8000
+SESSION_SECRET=generate-a-long-random-string-here
 
-# Database Configuration (SQLite File-Based Storage)
+# --- Local SQLite Database ---
+# Leave blank to use the default: database/chatbot.sqlite (relative to project root)[cite: 14]
+SQLITE_DB_PATH=database/chatbot.sqlite
 DB_DRIVER=sqlite
 DB_PATH=database/chatbot.sqlite
 
-# AI Engine & LLM Integration (Groq API for Llama-3 Inference)
-GROQ_API_KEY=gsk_your_actual_groq_api_key_here
+# --- Groq (Llama-3 generation) ---
+GROQ_API_KEY=your-groq-api-key
 GROQ_MODEL=llama-3.3-70b-versatile
 
-# Admin Panel & Security Control
-ADMIN_API_KEY=your_secure_random_admin_secret_key_here
-
-# Embedding & Search Parameters (Local or Fallback Configuration)
+# --- HuggingFace Inference API (query-time embeddings) ---
+# Leave blank during alpha testing if you don't have a token yet - the system[cite: 14]
+# degrades gracefully to keyword-only search when this is empty.[cite: 14]
+HF_API_KEY=your-huggingface-token
+HF_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+
+# --- Admin Panel & Security Control ---
+ADMIN_API_KEY=your_secure_random_admin_secret_key_here
 MAX_SEARCH_RESULTS=5
