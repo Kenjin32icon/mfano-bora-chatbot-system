@@ -1,2 +1,23 @@
-SUPABASE_URL=https://lurtyfvgdqzxelrohjgs.supabase.co
-SUPABASE_SERVICE_KEY=your-service-role-key-here
+# ==============================================================================
+# Mfano Bora Chatbot System - Environment Configuration (SQLite + PHP Stack)
+# ==============================================================================
+
+# Application Environment Settings
+APP_ENV=development
+APP_NAME="Mfano Bora Resources Portal & Chatbot"
+APP_URL=http://localhost/mfano_bora
+
+# Database Configuration (SQLite File-Based Storage)
+DB_DRIVER=sqlite
+DB_PATH=database/chatbot.sqlite
+
+# AI Engine & LLM Integration (Groq API for Llama-3 Inference)
+GROQ_API_KEY=gsk_your_actual_groq_api_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# Admin Panel & Security Control
+ADMIN_API_KEY=your_secure_random_admin_secret_key_here
+
+# Embedding & Search Parameters (Local or Fallback Configuration)
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+MAX_SEARCH_RESULTS=5
