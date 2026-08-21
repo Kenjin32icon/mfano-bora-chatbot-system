@@ -34,18 +34,10 @@ function mfano_load_env(string $path): void
 
 mfano_load_env(__DIR__ . '/../.env');
 
-// ---- Supabase / Postgres ----------------------------------------------------
-define('SUPABASE_DB_HOST', getenv('SUPABASE_DB_HOST') ?: '');
-define('SUPABASE_DB_PORT', getenv('SUPABASE_DB_PORT') ?: '5432');
-define('SUPABASE_DB_NAME', getenv('SUPABASE_DB_NAME') ?: 'postgres');
-define('SUPABASE_DB_USER', getenv('SUPABASE_DB_USER') ?: 'postgres');
-define('SUPABASE_DB_PASSWORD', getenv('SUPABASE_DB_PASSWORD') ?: '');
-
-// Used only for the widget's read-only public queries via PostgREST if you
-// prefer HTTP over a direct PDO connection (see db.php for the switch).
-define('SUPABASE_URL', getenv('SUPABASE_URL') ?: '');
-define('SUPABASE_ANON_KEY', getenv('SUPABASE_ANON_KEY') ?: '');
-define('SUPABASE_SERVICE_ROLE_KEY', getenv('SUPABASE_SERVICE_ROLE_KEY') ?: '');
+// ---- Local SQLite database --------------------------------------------------
+// Path is relative to this file's parent (project root) by default; override
+// in .env with an absolute path if you want the .sqlite file stored elsewhere.
+define('SQLITE_DB_PATH', getenv('SQLITE_DB_PATH') ?: (__DIR__ . '/../database/chatbot.sqlite'));
 
 // ---- Groq (Llama-3 generation) ---------------------------------------------
 define('GROQ_API_KEY', getenv('GROQ_API_KEY') ?: '');
