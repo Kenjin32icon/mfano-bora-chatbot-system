@@ -10,7 +10,7 @@ ALLOWED_ORIGIN=http://localhost:8000
 SESSION_SECRET=generate-a-long-random-string-here
 
 # --- Local SQLite Database ---
-# Leave blank to use the default: database/chatbot.sqlite (relative to project root)[cite: 14]
+# Leave blank to use the default: database/chatbot.sqlite (relative to project root)
 SQLITE_DB_PATH=database/chatbot.sqlite
 DB_DRIVER=sqlite
 DB_PATH=database/chatbot.sqlite
@@ -20,8 +20,8 @@ GROQ_API_KEY=your-groq-api-key
 GROQ_MODEL=llama-3.3-70b-versatile
 
 # --- HuggingFace Inference API (query-time embeddings) ---
-# Leave blank during alpha testing if you don't have a token yet - the system[cite: 14]
-# degrades gracefully to keyword-only search when this is empty.[cite: 14]
+# Leave blank during alpha testing if you don't have a token yet - the system
+# degrades gracefully to keyword-only search when this is empty.
 HF_API_KEY=your-huggingface-token
 HF_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
