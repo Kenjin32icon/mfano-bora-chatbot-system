@@ -5,17 +5,18 @@ $pdo = mfano_db();
 
 $totals = $pdo->query(
     "SELECT count(*) AS total,
-            count(*) FILTER (WHERE was_fallback) AS fallbacks,
-            round(avg(confidence_score)::numeric, 3) AS avg_conf,
-            round(avg(response_time_ms)::numeric, 0) AS avg_ms
-     FROM chat_logs WHERE created_at > now() - interval '30 days'"
+            sum(was_fallback) AS fallbacks,
+            round(avg(confidence_score), 3) AS avg_conf,
+            round(avg(response_time_ms), 0) AS avg_ms
+     FROM chat_logs
+     WHERE created_at > datetime('now', '-30 days')"
 )->fetch();
 
 // Gap analysis: unanswered questions, grouped, to guide Task 13 knowledge-base updates
 $gaps = $pdo->query(
     "SELECT user_message, count(*) AS times_asked, max(created_at) AS last_asked
      FROM chat_logs
-     WHERE was_fallback = true AND created_at > now() - interval '30 days'
+     WHERE was_fallback = 1 AND created_at > datetime('now', '-30 days')
      GROUP BY user_message
      ORDER BY times_asked DESC, last_asked DESC
      LIMIT 30"
