@@ -4,14 +4,18 @@
  * POST /api/chat.php   { "message": "...", "session_id": "..." }
  * Returns: { "answer": "...", "fallback": bool, "sources": [...] }
  *
+ * SQLite has no pg_trgm and no pgvector, so both fuzzy FAQ matching and
+ * embedding cosine similarity are computed here in PHP instead of in SQL.
+ * KB size for a single organisation's chatbot is small enough (hundreds,
+ * not millions, of rows) that scanning all active rows per request is fine.
+ *
  * Pipeline:
- *  1. Try curated FAQ exact/fuzzy match first (fastest, zero LLM cost).
- *  2. Otherwise: embed the query -> hybrid vector+keyword search on
- *     knowledge_base (match_knowledge_base RPC/SQL) -> if hits found,
- *     pass ONLY those chunks to Groq for a grounded answer.
- *  3. If nothing relevant is retrieved, return a fallback message instead
- *     of calling the LLM at all (prevents hallucination) and flag the row
- *     in chat_logs for the weekly gap-analysis job.
+ *  1. Curated FAQ fuzzy match first (fastest, zero LLM cost).
+ *  2. Otherwise: embed the query -> cosine-similarity rank against all active
+ *     knowledge_base rows that have an embedding, PLUS a keyword-overlap
+ *     score as a fallback signal -> merge and take the top 5.
+ *  3. If nothing relevant is retrieved, return a fallback message instead of
+ *     calling the LLM (prevents hallucination) and log it for gap analysis.
  */
 
 declare(strict_types=1);
@@ -30,7 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['error' => 'Method not allowed']);
@@ -51,21 +54,24 @@ if ($userMessage === '' || mb_strlen($userMessage) > 800) {
 
 $pdo = mfano_db();
 
-// ---- 1. Curated FAQ fast path ---------------------------------------------
-$faqStmt = $pdo->prepare(
-    "SELECT question, answer, similarity(question, :q) AS sim
-     FROM faq_entries
-     WHERE is_active = true
-     ORDER BY sim DESC
-     LIMIT 1"
-);
-$faqStmt->execute(['q' => $userMessage]);
-$faqRow = $faqStmt->fetch();
+// ---- 1. Curated FAQ fast path (fuzzy match done in PHP) --------------------
+$faqRows = $pdo->query("SELECT question, answer FROM faq_entries WHERE is_active = 1")->fetchAll();
 
-if ($faqRow && (float)$faqRow['sim'] >= 0.45) {
-    mfano_log_chat($pdo, $sessionId, $userMessage, [], $faqRow['answer'], false, 1.0, $startTime);
+$bestFaq = null;
+$bestFaqScore = 0.0;
+foreach ($faqRows as $faq) {
+    similar_text(mb_strtolower($userMessage), mb_strtolower($faq['question']), $pct);
+    $score = $pct / 100;
+    if ($score > $bestFaqScore) {
+        $bestFaqScore = $score;
+        $bestFaq = $faq;
+    }
+}
+
+if ($bestFaq && $bestFaqScore >= 0.55) {
+    mfano_log_chat($pdo, $sessionId, $userMessage, [], $bestFaq['answer'], false, 1.0, $startTime);
     echo json_encode([
-        'answer'   => $faqRow['answer'],
+        'answer'   => $bestFaq['answer'],
         'fallback' => false,
         'source'   => 'faq',
         'sources'  => [],
@@ -73,32 +79,45 @@ if ($faqRow && (float)$faqRow['sim'] >= 0.45) {
     exit;
 }
 
-// ---- 2. Hybrid retrieval from knowledge_base -------------------------------
-$embedding = mfano_get_embedding($userMessage);
+// ---- 2. Hybrid retrieval from knowledge_base (computed in PHP) -------------
+$kbRows = $pdo->query(
+    "SELECT id, dc_title, content_chunk, target_audience, embedding
+     FROM knowledge_base WHERE is_active = 1"
+)->fetchAll();
 
-if ($embedding !== null) {
-    $vecLiteral = mfano_vector_to_pg_literal($embedding);
-    $sql = "SELECT id, dc_title, content_chunk, target_audience, similarity
-            FROM match_knowledge_base(:emb::vector, :qtext, 5)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute(['emb' => $vecLiteral, 'qtext' => $userMessage]);
-} else {
-    // Degrade gracefully to keyword-only search if the embedding API is unreachable.
-    $sql = "SELECT id, dc_title, content_chunk, target_audience,
-                   ts_rank(search_vector, plainto_tsquery('english', :qtext)) AS similarity
-            FROM knowledge_base
-            WHERE is_active = true
-              AND search_vector @@ plainto_tsquery('english', :qtext)
-            ORDER BY similarity DESC
-            LIMIT 5";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute(['qtext' => $userMessage]);
+$queryEmbedding = mfano_get_embedding($userMessage);
+$queryWords = mfano_keyword_set($userMessage);
+
+$scored = [];
+foreach ($kbRows as $row) {
+    $vectorScore = 0.0;
+    if ($queryEmbedding !== null && !empty($row['embedding'])) {
+        $rowVector = json_decode($row['embedding'], true);
+        if (is_array($rowVector)) {
+            $vectorScore = mfano_cosine_similarity($queryEmbedding, $rowVector);
+        }
+    }
+
+    $keywordScore = mfano_keyword_overlap_score($queryWords, $row['dc_title'] . ' ' . $row['content_chunk']);
+
+    // Weighted blend: trust the embedding more when it's available.
+    $combined = ($queryEmbedding !== null)
+        ? (0.7 * $vectorScore + 0.3 * $keywordScore)
+        : $keywordScore;
+
+    if ($combined > 0) {
+        $scored[] = [
+            'id' => $row['id'],
+            'dc_title' => $row['dc_title'],
+            'content_chunk' => $row['content_chunk'],
+            'target_audience' => $row['target_audience'],
+            'similarity' => $combined,
+        ];
+    }
 }
 
-$matches = $stmt->fetchAll();
-
-// Filter out weak/irrelevant matches so we never feed noise to the LLM.
-$relevant = array_values(array_filter($matches, fn($m) => (float)$m['similarity'] >= 0.20));
+usort($scored, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
+$relevant = array_slice(array_filter($scored, fn($m) => $m['similarity'] >= 0.20), 0, 5);
 
 if (empty($relevant)) {
     $fallbackMsg = "I don't have specific information on that yet. "
@@ -143,11 +162,45 @@ function mfano_log_chat(
     $stmt->execute([
         'sid'  => $sessionId,
         'msg'  => $userMessage,
-        'ids'  => '{' . implode(',', $matchedIds) . '}',
+        'ids'  => json_encode($matchedIds),   // JSON array, matches schema comment
         'resp' => $botResponse,
-        'fb'   => $wasFallback ? 'true' : 'false',
+        'fb'   => $wasFallback ? 1 : 0,        // integer, matches INTEGER column affinity
         'conf' => round($confidence, 3),
         'rt'   => (int)((microtime(true) - $startTime) * 1000),
         'ua'   => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255),
     ]);
+}
+
+function mfano_cosine_similarity(array $a, array $b): float
+{
+    $len = min(count($a), count($b));
+    if ($len === 0) {
+        return 0.0;
+    }
+    $dot = 0.0; $normA = 0.0; $normB = 0.0;
+    for ($i = 0; $i < $len; $i++) {
+        $dot   += $a[$i] * $b[$i];
+        $normA += $a[$i] * $a[$i];
+        $normB += $b[$i] * $b[$i];
+    }
+    if ($normA <= 0 || $normB <= 0) {
+        return 0.0;
+    }
+    return $dot / (sqrt($normA) * sqrt($normB));
+}
+
+function mfano_keyword_set(string $text): array
+{
+    $words = preg_split('/[^a-z0-9]+/', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY);
+    return array_unique($words ?: []);
+}
+
+function mfano_keyword_overlap_score(array $queryWords, string $target): float
+{
+    if (empty($queryWords)) {
+        return 0.0;
+    }
+    $targetWords = mfano_keyword_set($target);
+    $overlap = count(array_intersect($queryWords, $targetWords));
+    return $overlap / count($queryWords);
 }
