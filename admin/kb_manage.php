@@ -16,14 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save'
     $chunk         = trim($_POST['content_chunk'] ?? '');
 
     $embedding = mfano_get_embedding($chunk);
-    $embLiteral = $embedding ? mfano_vector_to_pg_literal($embedding) : null;
+    $embLiteral = $embedding ? json_encode($embedding) : null;
 
     if ($id) {
         $stmt = $pdo->prepare(
             "UPDATE knowledge_base
              SET dc_title=:t, category_id=:c, target_audience=:a, dc_source=:s,
                  content_chunk=:ch, embedding=COALESCE(:emb, embedding),
-                 version = version + 1, updated_at = now()
+                 version = version + 1, updated_at = CURRENT_TIMESTAMP
              WHERE id=:id"
         );
         $stmt->execute(['t'=>$title,'c'=>$categoryId,'a'=>$audience,'s'=>$source,'ch'=>$chunk,'emb'=>$embLiteral,'id'=>$id]);
@@ -118,7 +118,7 @@ if (isset($_GET['edit'])) {
         <tr>
           <td><?= htmlspecialchars($e['dc_title']) ?></td>
           <td><?= htmlspecialchars($e['category_name'] ?? '-') ?></td>
-          <td><?= $e['is_active'] === 't' || $e['is_active'] === true ? 'Yes' : 'No' ?></td>
+          <td><?= (int)$e['is_active'] === 1 ? 'Yes' : 'No' ?></td>
           <td><?= htmlspecialchars($e['updated_at']) ?></td>
           <td>
             <a href="?edit=<?= $e['id'] ?>">Edit</a> |
