@@ -33,7 +33,7 @@ function mfano_require_role(array $allowedRoles): array
 function mfano_attempt_login(string $email, string $password): bool
 {
     $pdo = mfano_db();
-    $stmt = $pdo->prepare("SELECT * FROM admin_users WHERE email = :email AND is_active = true");
+    $stmt = $pdo->prepare("SELECT * FROM admin_users WHERE email = :email AND is_active = 1");
     $stmt->execute(['email' => $email]);
     $user = $stmt->fetch();
 
@@ -43,7 +43,7 @@ function mfano_attempt_login(string $email, string $password): bool
             'email' => $user['email'],
             'role'  => $user['role'],
         ];
-        $update = $pdo->prepare("UPDATE admin_users SET last_login_at = now() WHERE id = :id");
+        $update = $pdo->prepare("UPDATE admin_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = :id");
         $update->execute(['id' => $user['id']]);
         return true;
     }
