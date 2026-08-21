@@ -1,9 +1,8 @@
 <?php
 /**
  * db.php
- * Direct PDO connection to the Supabase Postgres database.
- * Uses the Supabase "Session pooler" or "Direct connection" string found in:
- * Supabase Dashboard -> Project Settings -> Database -> Connection string
+ * Direct PDO connection to the local SQLite database.
+ * Replaces the remote Supabase Postgres pooler with a lightweight local file-based database.
  */
 
 declare(strict_types=1);
@@ -17,21 +16,18 @@ function mfano_db(): PDO
         return $pdo;
     }
 
-    $dsn = sprintf(
-        'pgsql:host=%s;port=%s;dbname=%s;sslmode=require',
-        SUPABASE_DB_HOST,
-        SUPABASE_DB_PORT,
-        SUPABASE_DB_NAME
-    );
+    // Database sits locally in the folder, no external host needed
+    $dbPath = __DIR__ . '/../database/chatbot.sqlite';
 
     try {
-        $pdo = new PDO($dsn, SUPABASE_DB_USER, SUPABASE_DB_PASSWORD, [
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
+        $pdo = new PDO('sqlite:' . $dbPath);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        // Enable foreign keys and Write-Ahead Logging for performance
+        $pdo->exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;');
     } catch (PDOException $e) {
         http_response_code(500);
-        die(json_encode(['error' => 'Database connection failed.']));
+        die(json_encode(['error' => 'Local database connection failed.']));
     }
 
     return $pdo;
